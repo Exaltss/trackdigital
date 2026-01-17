@@ -1,18 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
-*/
-
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\ReportController;
@@ -44,3 +32,6 @@ Route::post('/jadwal-personel', [DashboardController::class, 'storeJadwal'])->na
 // Instruksi (Tampil & Simpan)
 Route::get('/instruksi', [DashboardController::class, 'instruksi'])->name('instruksi');
 Route::post('/instruksi', [DashboardController::class, 'storeInstruksi'])->name('instruksi.store');
+
+// TAMBAHKAN INI: Route untuk membatalkan (menghapus) instruksi
+Route::delete('/instruksi/{id}', [DashboardController::class, 'destroyInstruksi'])->name('instruksi.destroy');
