@@ -5,6 +5,84 @@
 
 @section('content')
 
+<style>
+    /* Style Popup */
+    .leaflet-popup-content-wrapper {
+        border-radius: 8px !important;
+        padding: 0 !important;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+    }
+    .leaflet-popup-content {
+        margin: 0 !important;
+        width: 300px !important;
+    }
+    .leaflet-popup-close-button {
+        top: 8px !important;
+        right: 8px !important;
+        color: white !important;
+        text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        font-size: 18px !important;
+    }
+    
+    /* Layout Kartu Info */
+    .gmaps-card {
+        font-family: 'Roboto', Arial, sans-serif;
+        background: white;
+    }
+    .gmaps-header {
+        background-color: #4285F4; /* Google Blue */
+        color: white;
+        padding: 12px 15px;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+    }
+    .gmaps-body { padding: 15px; }
+    .gmaps-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #202124;
+        margin-bottom: 5px;
+        line-height: 1.3;
+    }
+    .gmaps-text {
+        font-size: 13px;
+        color: #3C4043;
+        line-height: 1.5;
+        margin-bottom: 5px;
+    }
+    .coord-box {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #d63384;
+        text-align: center;
+        margin-top: 5px;
+    }
+    .gmaps-footer {
+        border-top: 1px solid #E8EAED;
+        display: flex;
+    }
+    .gmaps-btn {
+        flex: 1;
+        text-align: center;
+        padding: 12px 0;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        color: #1A73E8;
+        background: white;
+        transition: 0.2s;
+    }
+    .gmaps-btn:hover { background: #F1F3F4; color: #174EA6; }
+    .gmaps-btn:first-child { border-right: 1px solid #E8EAED; }
+</style>
+
 <div class="card card-custom bg-danger text-white mb-4 shadow">
     <div class="card-body d-flex justify-content-between align-items-center">
         <div>
@@ -82,13 +160,11 @@
 
     <div class="col-md-7">
         <div class="card card-custom bg-white p-0 h-100" id="map-wrapper" style="display:none;">
-            <div class="card-header bg-light py-2">
+            <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
                 <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Klik peta untuk pilih tujuan.</small>
+                <small class="text-primary fw-bold" id="status-pick">Menunggu Pilihan...</small>
             </div>
             <div id="map-picker" style="height: 380px; width: 100%;"></div>
-            <div class="p-2 text-center bg-light border-top small">
-                Koordinat: <span id="coordinate-display" class="fw-bold text-primary">-</span>
-            </div>
         </div>
         
         <div class="card card-custom bg-light p-5 text-center h-100 d-flex justify-content-center align-items-center" id="map-placeholder">
@@ -162,40 +238,94 @@
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Inisialisasi Peta
-    var mapPicker = L.map('map-picker').setView([-8.0739, 111.9015], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(mapPicker);
+    // 1. DEFINISI LAYER GOOGLE MAPS
+    var googleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
+        maxZoom: 21, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google'
+    });
+    var googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',{
+        maxZoom: 21, subdomains:['mt0','mt1','mt2','mt3'], attribution: '© Google'
+    });
+
+    // 2. INISIALISASI PETA
+    var mapPicker = L.map('map-picker', {
+        center: [-8.0739, 111.9015], // Default Tulungagung
+        zoom: 13,
+        layers: [googleStreets], // Default Street View
+        zoomControl: false
+    });
+    
+    // Pindah Zoom Control
+    L.control.zoom({ position: 'topleft' }).addTo(mapPicker);
+    
+    // Tambah Layer Control
+    L.control.layers({ "Peta Jalan": googleStreets, "Satelit": googleHybrid }).addTo(mapPicker);
     
     var pickedMarker = null;
+    var detailPopup = L.popup();
 
-    // Event Klik Peta
+    // 3. EVENT KLIK PETA (PILIH LOKASI + INFO DETAIL)
     mapPicker.on('click', function(e) {
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
 
-        // Isi input hidden
+        // A. Update Form Input Hidden (PENTING!)
         document.getElementById('lat').value = lat;
         document.getElementById('lng').value = lng;
         
-        // Tampilkan teks koordinat
-        document.getElementById('coordinate-display').innerText = lat.toFixed(6) + ", " + lng.toFixed(6);
+        // Update Status Teks di Header Card
+        document.getElementById('status-pick').innerText = "Titik Terpilih!";
+        document.getElementById('status-pick').className = "text-success fw-bold";
 
-        // Pasang/Pindah Marker
+        // B. Tampilkan Marker
         if (pickedMarker) {
             pickedMarker.setLatLng(e.latlng);
         } else {
             pickedMarker = L.marker(e.latlng, {draggable: true}).addTo(mapPicker);
-            // Update jika marker digeser
+            
+            // Jika marker digeser, update juga koordinatnya
             pickedMarker.on('dragend', function(event){
                 var position = event.target.getLatLng();
                 document.getElementById('lat').value = position.lat;
                 document.getElementById('lng').value = position.lng;
-                document.getElementById('coordinate-display').innerText = position.lat.toFixed(6) + ", " + position.lng.toFixed(6);
             });
         }
+
+        // C. Tampilkan Popup Detail (Reverse Geocoding)
+        detailPopup.setLatLng(e.latlng).setContent('<div class="p-3 text-center">Mengambil info lokasi...</div>').openOn(mapPicker);
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
+        .then(res => res.json())
+        .then(data => {
+            var name = data.address.amenity || data.address.building || "Lokasi Terpilih";
+            var fullAddress = data.display_name;
+            var mapsUrl = `http://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}`;
+            var routeUrl = `http://maps.google.com/maps?q=${lat},${lng}`;
+
+            var content = `
+            <div class="gmaps-card">
+                <div class="gmaps-header">
+                    <i class="bi bi-geo-alt-fill me-2"></i> Konfirmasi Titik Instruksi
+                </div>
+                <div class="gmaps-body">
+                    <div class="gmaps-title">${name}</div>
+                    <div class="gmaps-text">${fullAddress}</div>
+                    <div class="coord-box">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+                </div>
+                <div class="gmaps-footer">
+                    <a href="${mapsUrl}" target="_blank" class="gmaps-btn text-primary">
+                        <i class="bi bi-person-bounding-box me-1"></i> Cek Street View
+                    </a>
+                    <a href="${routeUrl}" target="_blank" class="gmaps-btn text-success">
+                        <i class="bi bi-cursor-fill me-1"></i> Cek Rute
+                    </a>
+                </div>
+            </div>`;
+            
+            detailPopup.setContent(content);
+        });
     });
 
-    // Toggle Tampilan Peta
+    // 4. TOGGLE MAP (Show/Hide)
     function toggleMap() {
         var tipe = document.getElementById('tipe_instruksi').value;
         var mapWrapper = document.getElementById('map-wrapper');
@@ -213,7 +343,7 @@
         }
     }
 
-    // Auto-fill Pesan
+    // 5. AUTO FILL PESAN
     function fillMessage() {
         var select = document.getElementById('pilihan_instruksi');
         var text = document.getElementById('text_instruksi');
