@@ -6,7 +6,7 @@
 @section('content')
 
 <style>
-    /* Style Popup */
+    /* Reset Style Popup Leaflet */
     .leaflet-popup-content-wrapper {
         border-radius: 8px !important;
         padding: 0 !important;
@@ -25,7 +25,7 @@
         font-size: 18px !important;
     }
     
-    /* Layout Kartu Info */
+    /* Layout Kartu Info di dalam Peta */
     .gmaps-card {
         font-family: 'Roboto', Arial, sans-serif;
         background: white;
@@ -254,10 +254,7 @@
         zoomControl: false
     });
     
-    // Pindah Zoom Control
     L.control.zoom({ position: 'topleft' }).addTo(mapPicker);
-    
-    // Tambah Layer Control
     L.control.layers({ "Peta Jalan": googleStreets, "Satelit": googleHybrid }).addTo(mapPicker);
     
     var pickedMarker = null;
@@ -268,11 +265,11 @@
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
 
-        // A. Update Form Input Hidden (PENTING!)
+        // A. Update Form Input Hidden
         document.getElementById('lat').value = lat;
         document.getElementById('lng').value = lng;
         
-        // Update Status Teks di Header Card
+        // Update Status Teks
         document.getElementById('status-pick').innerText = "Titik Terpilih!";
         document.getElementById('status-pick').className = "text-success fw-bold";
 
@@ -290,9 +287,10 @@
             });
         }
 
-        // C. Tampilkan Popup Detail (Reverse Geocoding)
+        // C. Tampilkan Popup Detail (Loading)
         detailPopup.setLatLng(e.latlng).setContent('<div class="p-3 text-center">Mengambil info lokasi...</div>').openOn(mapPicker);
 
+        // D. Ambil Detail Alamat (Nominatim)
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
         .then(res => res.json())
         .then(data => {
@@ -334,7 +332,7 @@
         if (tipe === 'lokasi') {
             mapWrapper.style.display = 'block';
             mapPlaceholder.style.display = 'none';
-            setTimeout(function(){ mapPicker.invalidateSize(); }, 300); // Agar peta render sempurna
+            setTimeout(function(){ mapPicker.invalidateSize(); }, 300);
         } else {
             mapWrapper.style.display = 'none';
             mapPlaceholder.style.display = 'flex';
@@ -343,7 +341,7 @@
         }
     }
 
-    // 5. AUTO FILL PESAN
+    // 5. AUTO FILL PESAN (TEMPLATE)
     function fillMessage() {
         var select = document.getElementById('pilihan_instruksi');
         var text = document.getElementById('text_instruksi');
