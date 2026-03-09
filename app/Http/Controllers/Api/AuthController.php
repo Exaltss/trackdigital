@@ -9,24 +9,36 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function login(Request $request) {
-    $request->validate([
-        'username' => 'required',
-        'password' => 'required',
-    ]);
+    public function login(Request $request) 
+    {
+        $request->validate([
+            'username' => 'required',
+            'password' => 'required',
+        ]);
 
-    if (!Auth::attempt($request->only('username', 'password'))) {
-        return response()->json(['message' => 'Unauthorized'], 401);
+        if (!Auth::attempt($request->only('username', 'password'))) {
+            return response()->json(['message' => 'Login Gagal. Cek kembali username & password.'], 401);
+        }
+
+        $user = User::where('username', $request->username)->firstOrFail();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login berhasil',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user->load('personnel')
+        ]);
     }
 
-    $user = User::where('username', $request->username)->firstOrFail();
-    $token = $user->createToken('auth_token')->plainTextToken;
+    public function user(Request $request)
+    {
+        return response()->json($request->user()->load('personnel'));
+    }
 
-    return response()->json([
-        'message' => 'Login berhasil',
-        'access_token' => $token,
-        'token_type' => 'Bearer',
-        'user' => $user->load('personnel') // Load data personel
-    ]);
-}
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['message' => 'Logged out']);
+    }
 }
