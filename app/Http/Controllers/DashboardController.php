@@ -20,42 +20,68 @@ class DashboardController extends Controller
         return view('dashboard.monitoring'); 
     }
 
+    // --- FITUR BARU: UPDATE FOTO PROFIL DARI MOBILE ---
+    public function updatePhoto(Request $request)
+    {
+        $request->validate([
+            'foto' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        $user = $request->user();
+        $personnel = $user->personnel;
+
+        if (!$personnel) {
+            return response()->json(['message' => 'Data personel tidak ditemukan'], 404);
+        }
+
+        if ($request->hasFile('foto')) {
+            // 1. Hapus foto lama jika ada di storage
+            if ($personnel->foto_profil) {
+                Storage::disk('public')->delete($personnel->foto_profil);
+            }
+
+            // 2. Simpan foto baru ke folder public/profile_photos
+            $path = $request->file('foto')->store('profile_photos', 'public');
+            
+            // 3. Update path di database
+            $personnel->update(['foto_profil' => $path]);
+
+            return response()->json([
+                'message' => 'Foto profil berhasil diperbarui',
+                'url' => asset('storage/' . $path)
+            ]);
+        }
+
+        return response()->json(['message' => 'Gagal mengunggah foto'], 400);
+    }
+
     // --- VIEW: DAFTAR LAPORAN DENGAN FILTER ---
     public function laporan(Request $request) 
     {
         $query = Report::where('tipe_laporan', 'aduan/kejadian')->with('personnel');
         $personnels = Personnel::all();
 
-        // Filter Tanggal
         if ($request->filled('from_date')) {
             $query->whereDate('created_at', '>=', $request->from_date);
         }
         if ($request->filled('to_date')) {
             $query->whereDate('created_at', '<=', $request->to_date);
         }
-
-        // Filter Spesifik Personel (Rekap 1 orang)
         if ($request->filled('personnel_id') && $request->personnel_id != 'all') {
             $query->where('personnel_id', $request->personnel_id);
         }
 
         $laporan = $query->latest()->get();
-
         return view('dashboard.laporan', compact('laporan', 'personnels'));
     }
 
-    // --- ACTION: EXPORT KE PDF (DENGAN REKAP GAMBAR & FILTER) ---
+    // --- ACTION: EXPORT KE PDF (ADUAN) ---
     public function exportPdf(Request $request)
     {
         $query = Report::where('tipe_laporan', 'aduan/kejadian')->with('personnel');
 
-        // Samakan filter dengan yang ada di halaman utama
-        if ($request->filled('from_date')) {
-            $query->whereDate('created_at', '>=', $request->from_date);
-        }
-        if ($request->filled('to_date')) {
-            $query->whereDate('created_at', '<=', $request->to_date);
-        }
+        if ($request->filled('from_date')) { $query->whereDate('created_at', '>=', $request->from_date); }
+        if ($request->filled('to_date')) { $query->whereDate('created_at', '<=', $request->to_date); }
 
         $targetName = "Semua Personel";
         if ($request->filled('personnel_id') && $request->personnel_id != 'all') {
@@ -64,36 +90,66 @@ class DashboardController extends Controller
             $targetName = $p ? $p->nama_lengkap : "Personel";
         }
 
-        $laporan = $query->latest()->get();
-
         $data = [
             'title'   => 'REKAPITULASI LAPORAN ADUAN DIGITAL',
             'date'    => date('d/m/Y H:i'),
             'target'  => $targetName,
             'periode' => ($request->from_date ?? 'Awal') . ' s/d ' . ($request->to_date ?? 'Sekarang'),
-            'laporan' => $laporan
+            'laporan' => $query->latest()->get()
         ];
 
-        // Load View PDF dan set ke Landscape agar kolom gambar lega
         $pdf = Pdf::loadView('dashboard.pdf_laporan', $data)->setPaper('a4', 'landscape');
-        
-        $filename = 'Rekap_Laporan_' . str_replace(' ', '_', $targetName) . '_' . date('Ymd_His') . '.pdf';
-        return $pdf->download($filename);
+        return $pdf->download('Rekap_Laporan_' . str_replace(' ', '_', $targetName) . '_' . date('Ymd_His') . '.pdf');
     }
 
-    // --- FITUR REAL-TIME: CEK LAPORAN BARU ---
     public function checkNotification()
     {
-        $count = Report::where('tipe_laporan', 'aduan/kejadian')
-                       ->where('status_penanganan', 'menunggu konfirmasi')
-                       ->count();
+        $count = Report::where('tipe_laporan', 'aduan/kejadian')->where('status_penanganan', 'menunggu konfirmasi')->count();
         return response()->json(['unread_count' => $count]);
     }
 
-    // --- MANAJEMEN DATA DASHBOARD ---
-    public function checkpoint() {
-        $checkpoints = Report::where('tipe_laporan', 'checkpoint')->with('personnel')->latest()->get();
-        return view('dashboard.checkpoint', compact('checkpoints'));
+    // --- MANAJEMEN DATA CHECKPOINT ---
+    public function checkpoint(Request $request) {
+        $query = Report::where('tipe_laporan', 'checkpoint')->with('personnel');
+        $personnels = Personnel::all();
+
+        if ($request->filled('from_date')) { $query->whereDate('created_at', '>=', $request->from_date); }
+        if ($request->filled('to_date')) { $query->whereDate('created_at', '<=', $request->to_date); }
+        if ($request->filled('personnel_id') && $request->personnel_id != 'all') {
+            $query->where('personnel_id', $request->personnel_id);
+        }
+
+        $checkpoints = $query->latest()->get();
+        return view('dashboard.checkpoint', compact('checkpoints', 'personnels'));
+    }
+
+    // --- EXPORT PDF KHUSUS CHECKPOINT ---
+    public function exportCheckpointPdf(Request $request)
+    {
+        $query = Report::where('tipe_laporan', 'checkpoint')->with('personnel');
+
+        if ($request->filled('from_date')) { $query->whereDate('created_at', '>=', $request->from_date); }
+        if ($request->filled('to_date')) { $query->whereDate('created_at', '<=', $request->to_date); }
+
+        $targetName = "Semua Personel";
+        if ($request->filled('personnel_id') && $request->personnel_id != 'all') {
+            $query->where('personnel_id', $request->personnel_id);
+            $p = Personnel::find($request->personnel_id);
+            $targetName = $p ? $p->nama_lengkap : "Personel";
+        }
+
+        $data = [
+            'title'   => 'REKAPITULASI PERISTIWA CHECKPOINT PERSONEL',
+            'date'    => date('d/m/Y H:i'),
+            'target'  => $targetName,
+            'periode' => ($request->from_date ?? 'Awal') . ' s/d ' . ($request->to_date ?? 'Sekarang'),
+            'laporan' => $query->latest()->get()
+        ];
+
+        $pdf = Pdf::loadView('dashboard.pdf_checkpoint', $data)->setPaper('a4', 'landscape');
+        
+        $filename = 'Rekap_Peristiwa_' . str_replace(' ', '_', $targetName) . '_' . date('Ymd_His') . '.pdf';
+        return $pdf->download($filename);
     }
 
     public function jadwal() {
@@ -109,7 +165,14 @@ class DashboardController extends Controller
     }
 
     public function storeJadwal(Request $request) {
-        $validated = $request->validate(['personnel_id'=>'required|exists:personnels,id','tanggal'=>'required|date','shift'=>'required|string','lokasi_target'=>'required|string','latitude'=>'nullable','longitude'=>'nullable']);
+        $validated = $request->validate([
+            'personnel_id'=>'required|exists:personnels,id',
+            'tanggal'=>'required|date',
+            'shift'=>'required|string',
+            'lokasi_target'=>'required|string',
+            'latitude'=>'nullable',
+            'longitude'=>'nullable'
+        ]);
         Schedule::create($validated); 
         return back()->with('success', 'Jadwal berhasil ditambahkan');
     }
@@ -125,7 +188,7 @@ class DashboardController extends Controller
             ...$v, 
             'latitude' => $request->latitude, 
             'longitude' => $request->longitude, 
-            'personnel_id' => $request->personnel_id == 'all' ? null : $request->personnel_id
+            'personnel_id' => ($request->personnel_id == 'all' || !$request->personnel_id) ? null : $request->personnel_id
         ]);
         return back()->with('success', 'Instruksi berhasil dikirim');
     }
@@ -148,19 +211,46 @@ class DashboardController extends Controller
     }
 
     // =========================================================================
-    // API METHODS UNTUK FLUTTER
+    // API PETA WEB & MOBILE
     // =========================================================================
 
     public function getLocations() { 
-        return response()->json(Personnel::where('status_aktif','!=','offline')->whereNotNull('latitude')->get()); 
+        $today = \Carbon\Carbon::today();
+
+        $personnels = Personnel::where('status_aktif', '!=', 'offline')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->with(['schedules' => function ($query) use ($today) {
+                $query->whereDate('tanggal', $today)->orderBy('id', 'asc');
+            }])
+            ->get()
+            ->map(function($p) {
+                $p->latest_instruction = Instruction::where(function($q) use ($p) {
+                        $q->whereNull('personnel_id')->orWhere('personnel_id', $p->id);
+                    })
+                    ->latest()
+                    ->first();
+                return $p;
+            });
+
+        return response()->json($personnels); 
     }
+
+    public function getCheckpointsJson() {
+        $checkpoints = Report::where('tipe_laporan', 'checkpoint')->with('personnel')->latest()->take(200)->get();
+        return response()->json($checkpoints);
+    }
+
+    // =========================================================================
+    // API KHUSUS MOBILE (FLUTTER)
+    // =========================================================================
 
     public function getLatestInstruction(Request $request) {
         $pId = $request->user()->personnel->id;
-        $l = Instruction::where(function($q) use ($pId) {
-            $q->whereNull('personnel_id')->orWhere('personnel_id', $pId);
+        $l = Instruction::where(function($q) use ($pId) { 
+            $q->whereNull('personnel_id')->orWhere('personnel_id', $pId); 
         })->latest()->first();
-
+        
         return response()->json([
             'id' => $l ? $l->id : 0, 
             'judul' => $l ? $l->judul : '-', 

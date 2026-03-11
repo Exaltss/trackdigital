@@ -19,15 +19,24 @@ Route::post('/logout', [WebAuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth'])->group(function () {
     
+    // Dashboard & Monitoring Map
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/get-locations', [DashboardController::class, 'getLocations'])->name('dashboard.data');
+    
+    // --- ROUTE BARU: Untuk Mengambil Data Pin Checkpoint di Peta Admin ---
+    Route::get('/get-checkpoints-json', [DashboardController::class, 'getCheckpointsJson'])->name('dashboard.checkpoints');
 
-    // Laporan & Fitur Export PDF
+    // Laporan & Fitur Export PDF (Aduan)
     Route::get('/laporan-digital', [DashboardController::class, 'laporan'])->name('laporan');
     Route::get('/laporan-digital/export-pdf', [DashboardController::class, 'exportPdf'])->name('laporan.pdf');
     
     Route::get('/check-new-reports', [DashboardController::class, 'checkNotification'])->name('laporan.check');
+    
+    // Checkpoint Log & Export PDF (Checkpoint)
     Route::get('/checkpoint-log', [DashboardController::class, 'checkpoint'])->name('checkpoint');
+    Route::get('/checkpoint-log/export-pdf', [DashboardController::class, 'exportCheckpointPdf'])->name('checkpoint.pdf'); // <-- INI ROUTE BARUNYA
+    
+    // Hapus & Update Status
     Route::delete('/dashboard/laporan/{id}', [DashboardController::class, 'destroyLaporan'])->name('laporan.destroy');
     Route::get('/dashboard/laporan/update/{id}/{status}', [DashboardController::class, 'updateStatusLaporan'])->name('laporan.status');
 

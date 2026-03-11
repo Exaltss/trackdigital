@@ -9,10 +9,8 @@ class Personnel extends Model
 {
     use HasFactory;
 
-    // Menentukan nama tabel secara eksplisit (opsional, tapi disarankan)
     protected $table = 'personnels';
 
-    // Kolom yang boleh diisi (Mass Assignment)
     protected $fillable = [
         'user_id',
         'nama_lengkap',
@@ -25,19 +23,22 @@ class Personnel extends Model
         'last_location_update',
     ];
 
-    /**
-     * Relasi ke Model User (Kebalikan dari hasOne di User)
-     */
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    /**
-     * Relasi ke Model Report (Satu personel bisa punya banyak laporan)
-     */
     public function reports()
     {
         return $this->hasMany(Report::class, 'personnel_id');
+    }
+
+    // --- TAMBAHKAN RELASI INI ---
+    /**
+     * Relasi ke Model Schedule (Satu personel punya banyak jadwal)
+     */
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class, 'personnel_id');
     }
 }

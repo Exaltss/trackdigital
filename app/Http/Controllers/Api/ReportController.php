@@ -17,9 +17,9 @@ class ReportController extends Controller
         try {
             $personnelId = $request->user()->personnel->id;
 
-            // Mengambil laporan aduan (bukan checkpoint) milik personel tersebut
+            // PERBAIKAN: Mengambil laporan aduan DAN checkpoint milik personel tersebut
             $reports = Report::where('personnel_id', $personnelId)
-                ->where('tipe_laporan', 'aduan/kejadian')
+                ->whereIn('tipe_laporan', ['aduan/kejadian', 'checkpoint'])
                 ->latest()
                 ->get();
 

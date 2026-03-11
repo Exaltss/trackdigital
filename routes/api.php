@@ -7,33 +7,46 @@ use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\DashboardController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
 // --- Rute Publik ---
 Route::post('/login', [AuthController::class, 'login']);
 
-// --- Rute Terproteksi (Harus Login) ---
+// --- Rute Terproteksi (Harus Login / Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
     
-    // Ambil Data User Profile
+    // 1. Ambil Data User Profile BESERTA Relasi Personnel
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return $request->user()->load('personnel');
     });
 
-    // Ambil Jadwal Khusus Mobile (Pastikan nama ini sama dengan di Flutter)
+    // 2. UPDATE FOTO PROFIL PERSONEL (Baru)
+    // Menghubungkan ke fungsi updatePhoto di DashboardController
+    Route::post('/user/photo', [DashboardController::class, 'updatePhoto']);
+
+    // 3. AMBIL LOKASI SEMUA PERSONEL AKTIF (UNTUK MAP FLUTTER)
+    Route::get('/locations', [DashboardController::class, 'getLocations']);
+
+    // 4. Ambil Jadwal Khusus Mobile
     Route::get('/jadwal-mobile', [DashboardController::class, 'getJadwalMobile']);
 
-    // Ambil Instruksi Terbaru (Polling)
+    // 5. Ambil Instruksi Terbaru (Polling)
     Route::get('/latest-instruction', [DashboardController::class, 'getLatestInstruction']);
 
-    // Ambil Ringkasan Laporan (Counter Checkpoint)
+    // 6. Ambil Ringkasan Laporan (Counter Checkpoint)
     Route::get('/ringkasan-laporan', [DashboardController::class, 'getRingkasanLaporan']);
 
-    // Update Lokasi Realtime
+    // 7. Update Lokasi Realtime (Tracking Saya)
     Route::post('/tracking', [TrackingController::class, 'updateLocation']);
     
-    // Rute Laporan & Checkpoint
+    // 8. Rute Laporan & Checkpoint
     Route::get('/reports', [ReportController::class, 'index']);
     Route::post('/reports', [ReportController::class, 'store']);
     
-    // Logout
+    // 9. Logout
     Route::post('/logout', [AuthController::class, 'logout']);
 });
